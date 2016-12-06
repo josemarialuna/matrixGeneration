@@ -14,7 +14,7 @@ object MainGenerateMatrixDistance {
 
     val conf = new SparkConf()
       .setAppName("Empleo Spark")
-      .setMaster("local[*]")
+      .setMaster("yarn-cluster")
 
     val sc = new SparkContext(conf)
     //val sqlContext = new org.apache.spark.sql.SQLContext(sc)
@@ -24,7 +24,7 @@ object MainGenerateMatrixDistance {
     val file100 = "C:\\datasets\\trabajadores100.csv"
     val file4000 = "C:\\datasets\\trabajadores4000.csv"
 
-    var origen: String = fileOriginal
+    var origen: String = fileOriginalMin
     var destino: String = Utils.whatTimeIsIt()
     var numPartitions = 4 // cluster has 25 nodes with 4 cores. You therefore need 4 x 25 = 100 partitions.
 
@@ -46,19 +46,19 @@ object MainGenerateMatrixDistance {
     //It skips the first line
     val skippedData = data.mapPartitionsWithIndex { (idx, iter) => if (idx == 0) iter.drop(1) else iter }
 
-    val dataRDD = skippedData.map(s => s.split(';').map(_.toDouble)).cache()
+    val dataRDD = skippedData.map(s => s.split(';').map(_.toFloat)).cache()
 
     // assuming dataRDD has type RDD[Array[Double]] and each Array has at least 4 items:
     val result = dataRDD
       .keyBy(_ (0).toInt)
       .mapValues(arr => Map(arr(1).toInt -> arr(2) / arr(3) * 100))
       .reduceByKey((a, b) => a ++ b)
-      .filter(_._1 < 100)
+    //.filter(_._1 < 100)
 
 
     val porfin = result.mapValues { y =>
       var rowVector = Vector.fill(totalY + 1) {
-        0.0
+        0.0f
       }
       for (z <- 1 to totalY) {
         if (y.exists(_._1 == z)) {
@@ -75,9 +75,9 @@ object MainGenerateMatrixDistance {
     val distances = porfin.cartesian(porfin)
       //.filter { case (a, b) => a._1 < b._1 }
       .map { case (x, y) =>
-      var totalDist = 0.0
+      var totalDist = 0.0f
       for (z <- 0 to totalY) {
-        var minAux = 0.0
+        var minAux = 0.0f
         try {
           val line = x._2(z)
           val linePlus = y._2(z)
@@ -94,11 +94,12 @@ object MainGenerateMatrixDistance {
         }
       }
       //id_W1, id_W2, dist
-      (x._1, y._1, 100.0 - totalDist)
-    }.sortBy(x => (x._1, x._2))
-      .map(_._3)
+      //(x._1, y._1, 100.0f - totalDist)
+      x._1 + "," + y._1 + "," + (100.0f - totalDist)
+    }
 
-    distances.saveAsTextFile(destino + "distancesDouble" + Utils.whatTimeIsIt())
+    distances.coalesce(1, shuffle = true)
+      .saveAsTextFile(destino + "distancesDouble" + Utils.whatTimeIsIt())
 
     /*
         //Mapeado de distancias para tener un output: RDD[idW1, Array(ids_Wx)]
