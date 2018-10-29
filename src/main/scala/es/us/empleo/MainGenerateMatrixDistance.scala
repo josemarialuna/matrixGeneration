@@ -119,7 +119,6 @@ object MainGenerateMatrixDistance {
             rowVector
           }
           .sortByKey()
-
         matrix.map(_._2.mkString(",")).saveAsTextFile(destino + "MatrixDistance")
     */
     sc.stop()
@@ -132,4 +131,3 @@ object MainGenerateMatrixDistance {
   }
 
 }
-
